@@ -4,8 +4,6 @@
 # Ignorar archivos de registro (logs)
 /logs/*.log
 
-# Ignorar respaldos de bases de datos locales para que no pesen tanto
-*.sql
 
 # Ignorar archivos temporales o del sistema operativo
 .DS_Store
