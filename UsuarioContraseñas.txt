@@ -1,0 +1,11 @@
+Rol: Administrador 
+
+Correo: Admin@gmail.com 
+
+Contraseña: Admin123
+
+Rol: Cajero
+
+Correo: Cajero@gmail.com
+
+Contraseña: Cajero123
