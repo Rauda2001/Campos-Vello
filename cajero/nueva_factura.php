@@ -6,7 +6,6 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/autenticacion.php';
 require_once __DIR__ . '/../includes/funciones.php';
 
-// Iniciador de sesión para capturar el ID del cajero logueado
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -22,17 +21,15 @@ $factura_id_actual = isset($_GET['id']) ? intval($_GET['id']) : null;
 $factura_guardada = null;
 $detalles_guardados = [];
 
-// Obtener los IDs extremos globales para las flechas de navegación
 $id_primero  = $pdo->query("SELECT MIN(id) FROM facturas")->fetchColumn();
 $id_ultimo   = $pdo->query("SELECT MAX(id) FROM facturas")->fetchColumn();
 $id_anterior = null;
 $id_siguiente = null;
 
-// Calcular el número correlativo que le tocaría a una factura nueva
 $siguiente_id_factura = $id_ultimo ? ($id_ultimo + 1) : 1;
 
 if ($factura_id_actual) {
-    // Buscar datos generales de la factura y su cliente
+    // Consulta select que incluye la columna metodo_pago
     $stmt = $pdo->prepare("
         SELECT f.*, c.name AS cliente_nombre 
         FROM facturas f 
@@ -43,7 +40,6 @@ if ($factura_id_actual) {
     $factura_guardada = $stmt->fetch();
 
     if ($factura_guardada) {
-        // Buscar el desglose de productos asociados
         $stmtDet = $pdo->prepare("
             SELECT i.*, p.name AS producto_nombre 
             FROM invoice_items i 
@@ -53,32 +49,27 @@ if ($factura_id_actual) {
         $stmtDet->execute([$factura_id_actual]);
         $detalles_guardados = $stmtDet->fetchAll();
 
-        // Calcular dinámicamente los IDs previo y posterior
         $id_anterior  = $pdo->query("SELECT MAX(id) FROM facturas WHERE id < $factura_id_actual")->fetchColumn();
         $id_siguiente = $pdo->query("SELECT MIN(id) FROM facturas WHERE id > $factura_id_actual")->fetchColumn();
     }
 } else {
-    // Si es una nueva factura, "Anterior" apunta a la última guardada
     $id_anterior = $id_ultimo; 
     $id_siguiente = null; 
 }
 
 // =========================================================================
-// LÓGICA PARA GUARDAR LA FACTURA (SÓLO SI NO ES MODO VISUALIZACIÓN)
+// LÓGICA PARA GUARDAR LA FACTURA CON EL MÉTODO DE PAGO
 // =========================================================================
 $error_mensaje = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$factura_id_actual) {
 
-    $cliente_id = $_POST['cliente_id'] ?? null;
-    $subtotal   = $_POST['subtotal'] ?? 0;
-    $iva        = $_POST['iva'] ?? 0;
-    $total      = $_POST['total'] ?? 0;
-
-    // -------------------------------------------------------------------------
-    // ACTUALIZACIÓN CLAVE: Se extrae el ID del paquete $_SESSION['user']
-    // -------------------------------------------------------------------------
-    $user_id    = $_SESSION['user']['id'] ?? null; 
+    $cliente_id  = $_POST['cliente_id'] ?? null;
+    $metodo_pago = $_POST['metodo_pago'] ?? 'Efectivo'; 
+    $subtotal    = $_POST['subtotal'] ?? 0;
+    $iva         = $_POST['iva'] ?? 0;
+    $total       = $_POST['total'] ?? 0;
+    $user_id     = $_SESSION['user']['id'] ?? null; 
 
     $codigos      = $_POST['codigo'] ?? [];
     $cantidades   = $_POST['cantidad'] ?? [];
@@ -88,11 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$factura_id_actual) {
         try {
             $pdo->beginTransaction();
 
+            // Guardamos la información incluyendo el metodo_pago en la base de datos
             $stmtFactura = $pdo->prepare("
-                INSERT INTO facturas (user_id, client_id, subtotal, iva_amount, total, created_at) 
-                VALUES (?, ?, ?, ?, ?, NOW())
+                INSERT INTO facturas (user_id, client_id, metodo_pago, subtotal, iva_amount, total, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
-            $stmtFactura->execute([$user_id, $cliente_id, $subtotal, $iva, $total]);
+            $stmtFactura->execute([$user_id, $cliente_id, $metodo_pago, $subtotal, $iva, $total]);
             
             $factura_id = $pdo->lastInsertId();
 
@@ -172,9 +164,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             padding:20px;
         }
 
-        /* =========================================================================
-           BARRA DE NAVEGACIÓN VERDE CORPORATIVO
-        =========================================================================*/
         .barra-sap {
             background: linear-gradient(135deg, #1f7a1f, #2f8b2f);
             border: 1px solid #196119;
@@ -242,9 +231,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             margin: 0 8px; 
         }
 
-        /* =========================================
-           HEADER VERDE
-        ==========================================*/
         .header-factura{
             background:linear-gradient(135deg,#1f7a1f,#2f8b2f);
             color:white;
@@ -330,9 +316,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             outline: none;
         }
 
-        /* =========================================
-           CARD Y TABLAS
-        ==========================================*/
         .card{
             background:white;
             border-radius:16px;
@@ -408,22 +391,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             outline: none;
         }
 
-        .btn-agregar{
-            margin-top:15px;
-            border:none;
-            border-radius:8px;
-            background:#2f8b2f;
-            color:white;
-            padding:10px 18px;
-            cursor:pointer;
-            font-size:13px;
-            font-weight:bold;
-            outline: none;
-        }
-
-        /* =========================================
-           RESUMEN Y ACCIONES
-        ==========================================*/
         .footer-factura{
             margin-top:25px;
             display:flex;
@@ -502,9 +469,11 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             background:#bf360c;
         }
 
-        /* =========================================
-           MODALES
-        ==========================================*/
+        select#metodo_pago option {
+            color: #333333 !important;
+            background-color: #ffffff !important;
+        }
+
         .modal{
             display:none;
             position:fixed;
@@ -654,8 +623,20 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             </div>
 
             <div class="campo-header">
+                <label>Método de Pago</label>
+                <?php if ($factura_guardada): ?>
+                    <input type="text" value="<?= htmlspecialchars($factura_guardada['metodo_pago'] ?? 'Efectivo') ?>" readonly style="width: 160px; height: 38px; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; background: #e0e0e0; font-weight: bold; color: #333; text-align: center;">
+                <?php else: ?>
+                    <select name="metodo_pago" id="metodo_pago" form="formFactura" style="width: 160px; height: 38px; border: none; border-radius: 8px; padding: 0 12px; font-size: 13px; font-weight: bold; color: #222222; background: white; outline: none; cursor: pointer;">
+                        <option value="Efectivo">💵 Efectivo</option>
+                        <option value="Tarjeta">💳 Tarjeta</option>
+                    </select>
+                <?php endif; ?>
+            </div>
+
+            <div class="campo-header">
                 <label>Fecha</label>
-                <input type="text" value="<?= $fecha_actual ?>" readonly>
+                <input type="text" value="<?= $fecha_actual ?>" readonly style="width: 110px;">
             </div>
 
             <a href="ventas.php" class="volver-panel">
@@ -665,7 +646,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
     </div>
 
     <div class="card">
-        <form method="POST" action="nueva_factura.php">
+        <form method="POST" action="nueva_factura.php" id="formFactura">
 
             <?= csrf_field() ?>
 
@@ -727,12 +708,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
                     <?php endif; ?>
                 </tbody>
             </table>
-
-            <?php if (!$factura_guardada): ?>
-                <button type="button" class="btn-agregar" onclick="agregarFila()">
-                    +  Agregar línea
-                </button>
-            <?php endif; ?>
 
             <div class="footer-factura">
                 <div class="resumen">
@@ -865,7 +840,20 @@ let filaActual = null;
 
 function abrirModal(btn) {
     filaActual = btn.closest("tr");
+    
+    // --- LIMPIEZA INTELIGENTE DE BÚSQUEDA ANTERIOR ---
+    let inputBuscar = document.getElementById("buscarProducto");
+    inputBuscar.value = ""; // Vaciamos el input de texto
+    
+    // Volvemos a hacer visibles todas las filas de productos
+    let filas = document.querySelectorAll("#tablaProductos tr");
+    filas.forEach(f => f.style.display = "");
+    
+    // Mostramos el modal
     document.getElementById("modalProductos").style.display = "flex";
+    
+    // Opcional: Ponemos el foco automáticamente en el buscador para escribir directo
+    setTimeout(() => inputBuscar.focus(), 100);
 }
 
 function cerrarModal() {
@@ -879,6 +867,12 @@ function seleccionarProducto(id, nombre, precio) {
 
     calcularFila(filaActual.querySelector(".cantidades-input"));
     cerrarModal();
+
+    // --- CÁLCULO DE LÍNEA AUTOMÁTICA INTELIGENTE ---
+    let tbody = document.getElementById("bodyFactura");
+    if (filaActual === tbody.lastElementChild) {
+        agregarFila();
+    }
 }
 
 function calcularFila(input) {
@@ -941,8 +935,17 @@ function agregarFila() {
 }
 
 function eliminarFila(btn) {
-    let fila = btn.closest("tr");
-    fila.remove();
+    let tbody = document.getElementById("bodyFactura");
+    
+    if (tbody.rows.length <= 1) {
+        let fila = btn.closest("tr");
+        fila.remove();
+        agregarFila();
+    } else {
+        let fila = btn.closest("tr");
+        fila.remove();
+    }
+    
     recalcularNumeros();
     calcularTotales();
 }
@@ -955,7 +958,14 @@ function recalcularNumeros() {
 }
 
 function abrirModalClientes() {
+    // Limpieza de buscador de clientes al abrir
+    let inputBuscarCliente = document.getElementById("buscarCliente");
+    inputBuscarCliente.value = "";
+    let filasClientes = document.querySelectorAll("#tablaClientes tr");
+    filasClientes.forEach(f => f.style.display = "");
+
     document.getElementById("modalClientes").style.display = "flex";
+    setTimeout(() => inputBuscarCliente.focus(), 100);
 }
 
 function cerrarModalClientes() {
@@ -968,30 +978,25 @@ function seleccionarCliente(id, nombre) {
     cerrarModalClientes();
 }
 
-document.getElementById("buscarCliente").addEventListener("keyup", function(){
-    let valor = this.value.toLowerCase();
-    document.querySelectorAll("#tablaClientes tr").forEach(function(fila){
-        let nombre = fila.querySelector(".nombre-cliente").innerText.toLowerCase();
-        if(nombre.indexOf(valor) > -1){
-            fila.style.display = "";
-        } else {
-            fila.style.display = "none";
-        }
+// Filtros de búsqueda en tiempo real dentro de los modales
+document.getElementById("buscarProducto").addEventListener("input", function() {
+    let filtro = this.value.toLowerCase();
+    let filas = document.querySelectorAll("#tablaProductos tr");
+    filas.forEach(f => {
+        let texto = f.innerText.toLowerCase();
+        f.style.display = texto.includes(filtro) ? "" : "none";
     });
 });
 
-document.getElementById("buscarProducto").addEventListener("keyup", function(){
-    let valor = this.value.toLowerCase();
-    document.querySelectorAll("#tablaProductos tr").forEach(function(fila){
-        let id = fila.querySelector(".codigo-producto").innerText.toLowerCase();
-        let nombre = fila.querySelector(".nombre-producto").innerText.toLowerCase();
-        if(id.indexOf(valor) > -1 || nombre.indexOf(valor) > -1){
-            fila.style.display = "";
-        } else {
-            fila.style.display = "none";
-        }
+document.getElementById("buscarCliente").addEventListener("input", function() {
+    let filtro = this.value.toLowerCase();
+    let filas = document.querySelectorAll("#tablaClientes tr");
+    filas.forEach(f => {
+        let texto = f.innerText.toLowerCase();
+        f.style.display = texto.includes(filtro) ? "" : "none";
     });
 });
 </script>
+
 </body>
 </html>
