@@ -1,0 +1,10 @@
+# Campos Vello - Sistema de Facturación y Gestión
+Proyecto de aplicación web modular desarrollada en PHP y MySQL orientada al control comercial.
+
+### Características actuales:
+- Módulo funcional de facturación.
+- Procesamiento de transacciones en tiempo real.
+
+### Módulos en desarrollo:
+- Ingreso de mercancías.
+- Codificación dinámica de artículos.
