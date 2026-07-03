@@ -29,7 +29,6 @@ $id_siguiente = null;
 $siguiente_id_factura = $id_ultimo ? ($id_ultimo + 1) : 1;
 
 if ($factura_id_actual) {
-    // Consulta select que incluye la columna metodo_pago
     $stmt = $pdo->prepare("
         SELECT f.*, c.name AS cliente_nombre 
         FROM facturas f 
@@ -79,7 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$factura_id_actual) {
         try {
             $pdo->beginTransaction();
 
-            // Guardamos la información incluyendo el metodo_pago en la base de datos
             $stmtFactura = $pdo->prepare("
                 INSERT INTO facturas (user_id, client_id, metodo_pago, subtotal, iva_amount, total, created_at) 
                 VALUES (?, ?, ?, ?, ?, ?, NOW())
@@ -217,12 +215,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             transition: background 0.2s, transform 0.1s;
             outline: none;
         }
-        .btn-crear-sap:hover {
-            background: #e6f2e6;
-        }
-        .btn-crear-sap:active {
-            transform: scale(0.98);
-        }
         
         .separador-sap { 
             width: 1px; 
@@ -276,11 +268,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             text-decoration:none;
             font-size:14px;
             font-weight:600;
-            transition:0.2s;
-        }
-
-        .volver-panel:hover{
-            opacity:0.8;
         }
 
         .campo-header{
@@ -294,15 +281,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             margin-bottom:5px;
         }
 
-        .campo-header input{
-            height:38px;
-            border:none;
-            border-radius:8px;
-            padding:8px 12px;
-            font-size:13px;
-            outline:none;
-        }
-
         .btn-clientes{
             height:38px;
             border:none;
@@ -314,6 +292,30 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             cursor:pointer;
             font-size:13px;
             outline: none;
+        }
+        
+        .btn-clientes:focus, select#metodo_pago:focus, .btn-inventario-arriba:focus {
+            box-shadow: 0 0 0 3px #ffeb3b;
+        }
+
+        .btn-inventario-arriba {
+            background-color: #2f8b2f;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 15px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+            outline: none;
+        }
+        .btn-inventario-arriba:hover:not(:disabled) {
+            background-color: #1f5c1f;
         }
 
         .card{
@@ -345,11 +347,12 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             font-size:13px;
             background:white;
         }
-
-        .codigo-box{
-            display:flex;
-            align-items:center;
-            gap:6px;
+        
+        tr.fila-activa {
+            background-color: #d1ebd1 !important;
+        }
+        tr.fila-activa td {
+            background-color: #d1ebd1 !important;
         }
 
         .codigo-input,
@@ -363,19 +366,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             padding:6px 10px;
             font-size:13px;
             outline:none;
-        }
-
-        .btn-buscar{
-            width:34px;
-            height:34px;
-            border:none;
-            border-radius:6px;
-            background:#2f8b2f;
-            color:white;
-            cursor:pointer;
-            font-size:18px;
-            font-weight:bold;
-            outline: none;
+            background: #f9f9f9;
         }
 
         .btn-eliminar{
@@ -388,7 +379,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             cursor:pointer;
             font-size:14px;
             font-weight:bold;
-            outline: none;
         }
 
         .footer-factura{
@@ -439,11 +429,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             font-size:15px;
             font-weight:bold;
             cursor:pointer;
-            outline: none;
-        }
-
-        .btn-guardar:hover{
-            background:#0d47a1;
         }
 
         .btn-imprimir-pdf {
@@ -460,18 +445,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             color:white;
             font-size:15px;
             font-weight:bold;
-            cursor:pointer;
             text-decoration: none;
-            transition: background 0.2s;
-            outline: none;
-        }
-        .btn-imprimir-pdf:hover {
-            background:#bf360c;
-        }
-
-        select#metodo_pago option {
-            color: #333333 !important;
-            background-color: #ffffff !important;
         }
 
         .modal{
@@ -492,6 +466,33 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             padding:18px;
             max-height:85vh;
             overflow:auto;
+        }
+
+        .submodal-cantidad {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .submodal-cantidad-content {
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            width: 380px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .input-submodal-cant {
+            width: 80px;
+            height: 40px;
+            font-size: 18px;
+            text-align: center;
+            margin: 15px 0;
+            border: 1px solid #ccc;
+            border-radius: 8px;
         }
 
         .modal-header{
@@ -515,14 +516,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             background:red;
             color:white;
             cursor:pointer;
-            font-size:14px;
             font-weight:bold;
-            outline: none;
-        }
-
-        .tabla-productos th{
-            background:#2f7f2f;
-            color:white;
         }
 
         .btn-seleccionar{
@@ -534,7 +528,6 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             cursor:pointer;
             font-size:12px;
             font-weight:bold;
-            outline: none;
         }
 
         .busqueda-box{
@@ -543,22 +536,12 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             margin-bottom:15px;
         }
 
-        .icono-busqueda{
-            position:absolute;
-            right:12px;
-            top:50%;
-            transform:translateY(-50%);
-            color:#888;
-            font-size:13px;
-            pointer-events:none;
-        }
-
         .input-busqueda{
             width:100%;
             height:38px;
             border:1px solid #ccc;
             border-radius:8px;
-            padding:8px 34px 8px 12px;
+            padding:8px 12px;
             font-size:13px;
             outline:none;
         }
@@ -579,26 +562,19 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
 <div class="contenedor">
 
     <div class="barra-sap">
-        <a href="nueva_factura.php?id=<?= $id_primero ?>" class="btn-sap <?= ($factura_id_actual == $id_primero || !$id_primero) ? 'disabled' : '' ?>" title="Primera Factura">|◀</a>
-        <a href="nueva_factura.php?id=<?= $id_anterior ?>" class="btn-sap <?= !$id_anterior ? 'disabled' : '' ?>" title="Factura Anterior">◀</a>
-        <a href="nueva_factura.php?id=<?= $id_siguiente ?>" class="btn-sap <?= !$id_siguiente ? 'disabled' : '' ?>" title="Factura Siguiente">▶</a>
-        <a href="nueva_factura.php?id=<?= $id_ultimo ?>" class="btn-sap <?= ($factura_id_actual == $id_ultimo || !$id_ultimo || !$factura_id_actual) ? 'disabled' : '' ?>" title="Última Factura">▶|</a>
-        
+        <a href="nueva_factura.php?id=<?= $id_primero ?>" class="btn-sap <?= ($factura_id_actual == $id_primero || !$id_primero) ? 'disabled' : '' ?>">|◀</a>
+        <a href="nueva_factura.php?id=<?= $id_anterior ?>" class="btn-sap <?= !$id_anterior ? 'disabled' : '' ?>">◀</a>
+        <a href="nueva_factura.php?id=<?= $id_siguiente ?>" class="btn-sap <?= !$id_siguiente ? 'disabled' : '' ?>">▶</a>
+        <a href="nueva_factura.php?id=<?= $id_ultimo ?>" class="btn-sap <?= ($factura_id_actual == $id_ultimo || !$id_ultimo || !$factura_id_actual) ? 'disabled' : '' ?>">▶|</a>
         <div class="separador-sap"></div>
-        
-        <a href="nueva_factura.php" class="btn-crear-sap" title="Crear una nueva factura de cero">Crear nueva factura</a>
-        
+        <a href="nueva_factura.php" class="btn-crear-sap">Crear nueva factura</a>
         <span style="margin-left:auto; font-size:13px; font-weight:bold; color:#ffffff;">
-            <?php if ($factura_id_actual): ?>
-                Visualizando Factura Histórica: #<?= $factura_id_actual ?>
-            <?php else: ?>
-                Factura #<?= $siguiente_id_factura ?>
-            <?php endif; ?>
+            <?= $factura_id_actual ? "Factura Histórica: #$factura_id_actual" : "Factura #$siguiente_id_factura" ?>
         </span>
     </div>
 
     <?php if ($error_mensaje): ?>
-        <div style="background:#f8d7da; color:#721c24; padding:15px; border-radius:8px; margin-bottom:20px; font-weight:bold; border:1px solid #f5c6cb;">
+        <div style="background:#f8d7da; color:#721c24; padding:15px; border-radius:8px; margin-bottom:20px; font-weight:bold;">
             <?= htmlspecialchars($error_mensaje) ?>
         </div>
     <?php endif; ?>
@@ -616,18 +592,18 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
 
         <div class="header-derecha">
             <div class="campo-header">
-                <label>Cliente</label>
-                <button type="button" class="btn-clientes" onclick="abrirModalClientes()" <?= $factura_guardada ? 'disabled' : '' ?>>
+                <label>Cliente <span style="color: #ffeb3b; font-size: 11px;">[Alt + C]</span></label>
+                <button type="button" class="btn-clientes" id="btnDisparadorClientes" onclick="abrirModalClientes()" <?= $factura_guardada ? 'disabled' : '' ?>>
                     <?= $factura_guardada ? htmlspecialchars($factura_guardada['cliente_nombre']) : 'Seleccionar Cliente' ?>
                 </button>
             </div>
 
             <div class="campo-header">
-                <label>Método de Pago</label>
+                <label>Método de Pago <span style="color: #ffeb3b; font-size: 11px;">[Alt + P]</span></label>
                 <?php if ($factura_guardada): ?>
-                    <input type="text" value="<?= htmlspecialchars($factura_guardada['metodo_pago'] ?? 'Efectivo') ?>" readonly style="width: 160px; height: 38px; border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px; background: #e0e0e0; font-weight: bold; color: #333; text-align: center;">
+                    <input type="text" value="<?= htmlspecialchars($factura_guardada['metodo_pago'] ?? 'Efectivo') ?>" readonly style="width: 160px; height: 38px; border-radius: 8px; text-align: center; font-weight: bold;">
                 <?php else: ?>
-                    <select name="metodo_pago" id="metodo_pago" form="formFactura" style="width: 160px; height: 38px; border: none; border-radius: 8px; padding: 0 12px; font-size: 13px; font-weight: bold; color: #222222; background: white; outline: none; cursor: pointer;">
+                    <select name="metodo_pago" id="metodo_pago" form="formFactura" style="width: 160px; height: 38px; border-radius: 8px; font-weight: bold; outline: none;">
                         <option value="Efectivo">💵 Efectivo</option>
                         <option value="Tarjeta">💳 Tarjeta</option>
                     </select>
@@ -636,28 +612,30 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
 
             <div class="campo-header">
                 <label>Fecha</label>
-                <input type="text" value="<?= $fecha_actual ?>" readonly style="width: 110px;">
+                <input type="text" value="<?= $fecha_actual ?>" readonly style="width: 110px; height: 38px; border-radius:8px; border:none; text-align:center;">
             </div>
 
-            <a href="ventas.php" class="volver-panel">
-                Volver al panel
-            </a>
+            <a href="ventas.php" class="volver-panel">Volver al panel</a>
         </div>
     </div>
 
+    <?php if (!$factura_guardada): ?>
+        <button type="button" class="btn-inventario-arriba" id="btnAbrirInventario" onclick="abrirBuscadorCentralizado()">
+            🔍 Agregar Producto / Buscar en Inventario
+        </button>
+    <?php endif; ?>
+
     <div class="card">
         <form method="POST" action="nueva_factura.php" id="formFactura">
-
             <?= csrf_field() ?>
-
             <input type="hidden" name="cliente_id" id="cliente_id" value="<?= $factura_guardada ? $factura_guardada['client_id'] : '' ?>">
 
             <table id="tablaFactura">
                 <thead>
                     <tr>
                         <th width="5%">#</th>
-                        <th width="20%">Código</th>
-                        <th width="35%">Descripción</th>
+                        <th width="15%">Código</th>
+                        <th width="40%">Descripción</th>
                         <th width="10%">Cantidad</th>
                         <th width="13%">Precio</th>
                         <th width="13%">Total</th>
@@ -669,42 +647,14 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
                         <?php foreach ($detalles_guardados as $index => $item): ?>
                             <tr>
                                 <td><?= $index + 1 ?></td>
-                                <td>
-                                    <div class="codigo-box">
-                                        <input type="text" class="codigo-input" name="codigo[]" value="<?= $item['product_id'] ?>" readonly>
-                                        <button type="button" class="btn-buscar" disabled>+</button>
-                                    </div>
-                                </td>
-                                <td><input type="text" class="descripcion-input" name="descripcion[]" value="<?= htmlspecialchars($item['producto_nombre'] ?? 'Producto no existente') ?>" readonly></td>
+                                <td><input type="text" class="codigo-input" name="codigo[]" value="<?= $item['product_id'] ?>" readonly></td>
+                                <td><input type="text" class="descripcion-input" name="descripcion[]" value="<?= htmlspecialchars($item['producto_nombre'] ?? '') ?>" readonly></td>
                                 <td><input type="number" class="cantidades-input" name="cantidad[]" value="<?= $item['quantity'] ?>" readonly></td>
                                 <td><input type="text" class="precio-input" name="precio[]" value="<?= $item['price'] ?>" readonly></td>
                                 <td class="total-fila"><?= number_format($item['quantity'] * $item['price'], 2) ?></td>
                                 <td><button type="button" class="btn-eliminar" disabled>X</button></td>
                             </tr>
                         <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td>1</td>
-                            <td>
-                                <div class="codigo-box">
-                                    <input type="text" class="codigo-input" name="codigo[]" readonly>
-                                    <button type="button" class="btn-buscar" onclick="abrirModal(this)">+</button>
-                                </div>
-                            </td>
-                            <td>
-                                <input type="text" class="descripcion-input" name="descripcion[]" readonly>
-                            </td>
-                            <td>
-                                <input type="number" class="cantidades-input cantidad-input" name="cantidad[]" value="1" min="1" onchange="calcularFila(this)">
-                            </td>
-                            <td>
-                                <input type="text" class="precio-input" name="precio[]" readonly>
-                            </td>
-                            <td class="total-fila">0.00</td>
-                            <td>
-                                <button type="button" class="btn-eliminar" onclick="eliminarFila(this)">X</button>
-                            </td>
-                        </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -712,34 +662,27 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             <div class="footer-factura">
                 <div class="resumen">
                     <h2>Resumen</h2>
-
                     <div class="linea-resumen">
                         <span>Subtotal:</span>
                         <strong>$ <span id="subtotal"><?= $factura_guardada ? number_format($factura_guardada['subtotal'], 2) : '0.00' ?></span></strong>
                     </div>
-
                     <div class="linea-resumen">
                         <span>IVA (13%):</span>
                         <strong>$ <span id="iva"><?= $factura_guardada ? number_format($factura_guardada['iva_amount'], 2) : '0.00' ?></span></strong>
                     </div>
-
                     <div class="linea-resumen total-final">
                         <span>Total:</span>
                         <strong>$ <span id="total"><?= $factura_guardada ? number_format($factura_guardada['total'], 2) : '0.00' ?></span></strong>
                     </div>
 
-                    <input type="hidden" name="subtotal" id="inputSubtotal" value="<?= $factura_guardada ? $factura_guardada['subtotal'] : '' ?>">
-                    <input type="hidden" name="iva" id="inputIva" value="<?= $factura_guardada ? $factura_guardada['iva_amount'] : '' ?>">
-                    <input type="hidden" name="total" id="inputTotal" value="<?= $factura_guardada ? $factura_guardada['total'] : '' ?>">
+                    <input type="hidden" name="subtotal" id="inputSubtotal" value="<?= $factura_guardada ? $factura_guardada['subtotal'] : '0.00' ?>">
+                    <input type="hidden" name="iva" id="inputIva" value="<?= $factura_guardada ? $factura_guardada['iva_amount'] : '0.00' ?>">
+                    <input type="hidden" name="total" id="inputTotal" value="<?= $factura_guardada ? $factura_guardada['total'] : '0.00' ?>">
 
                     <?php if (!$factura_guardada): ?>
-                        <button type="submit" class="btn-guardar">
-                            Guardar Factura
-                        </button>
+                        <button type="submit" class="btn-guardar">Guardar Factura</button>
                     <?php else: ?>
-                        <a href="generar_pdf.php?id=<?= $factura_id_actual ?>" target="_blank" class="btn-imprimir-pdf">
-                            🖨️ Abrir PDF / Imprimir
-                        </a>
+                        <a href="generar_pdf.php?id=<?= $factura_id_actual ?>" target="_blank" class="btn-imprimir-pdf">🖨️ Abrir PDF / Imprimir</a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -753,32 +696,19 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             <h2>Seleccionar Cliente</h2>
             <button type="button" class="cerrar-modal" onclick="cerrarModalClientes()">X</button>
         </div>
-
         <div class="busqueda-box">
-            <input type="text" id="buscarCliente" placeholder="Buscar cliente..." class="input-busqueda">
-            <span class="icono-busqueda">⌕</span>
+            <input type="text" id="buscarCliente" placeholder="Buscar cliente..." class="input-busqueda" onkeydown="manejarTecladoClientes(event)">
         </div>
-
-        <table class="table">
+        <table>
             <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Nombre</th>
-                    <th>Seleccionar</th>
-                </tr>
+                <tr><th>ID</th><th>Nombre</th><th>Seleccionar</th></tr>
             </thead>
             <tbody id="tablaClientes">
                 <?php foreach($clientes as $c): ?>
-                    <tr>
+                    <tr id="fila_c_<?= $c['id'] ?>" onclick='seleccionarCliente(<?= json_encode($c['id']) ?>, <?= json_encode($c['name']) ?>)'>
                         <td><?= $c['id'] ?></td>
-                        <td class="nombre-cliente">
-                            <?= htmlspecialchars($c['name']) ?>
-                        </td>
-                        <td>
-                            <button type="button" class="btn-seleccionar" onclick='seleccionarCliente(<?= json_encode($c['id']) ?>, <?= json_encode($c['name']) ?>)'>
-                                Seleccionar
-                            </button>
-                        </td>
+                        <td><?= htmlspecialchars($c['name']) ?></td>
+                        <td><button type="button" class="btn-seleccionar">Seleccionar</button></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -792,42 +722,39 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             <h2>Seleccionar Producto</h2>
             <button type="button" class="cerrar-modal" onclick="cerrarModal()">X</button>
         </div>
-
         <div class="busqueda-box">
-            <input type="text" id="buscarProducto" placeholder="Buscar por nombre o código..." class="input-busqueda">
-            <span class="icono-busqueda">⌕</span>
+            <input type="text" id="buscarProducto" placeholder="Buscar por nombre o código..." class="input-busqueda" onkeydown="manejarTecladoProductos(event)">
         </div>
-
-        <table class="table tabla-productos">
+        <table>
             <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Nombre</th>
-                    <th>Categoría</th>
-                    <th>Ubicación</th>
-                    <th>Precio</th>
-                    <th>Stock</th>
-                    <th>Seleccionar</th>
-                </tr>
+                <tr><th>ID</th><th>Nombre</th><th>Categoría</th><th>Ubicación</th><th>Precio</th><th>Stock</th><th>Seleccionar</th></tr>
             </thead>
             <tbody id="tablaProductos">
                 <?php foreach($productos as $p): ?>
-                    <tr>
-                        <td class="codigo-producto"><?= $p['id'] ?></td>
-                        <td class="nombre-producto"><?= htmlspecialchars($p['name']) ?></td>
+                    <tr id="fila_p_<?= $p['id'] ?>" onclick='prepararCantidad(<?= json_encode($p['id']) ?>, <?= json_encode($p['name']) ?>, <?= json_encode($p['price']) ?>, <?= $p['stock'] ?>)'>
+                        <td><?= $p['id'] ?></td>
+                        <td><?= htmlspecialchars($p['name']) ?></td>
                         <td><?= htmlspecialchars($p['categoria']) ?></td>
                         <td><?= htmlspecialchars($p['location']) ?></td>
                         <td>$<?= number_format($p['price'], 2) ?></td>
                         <td><?= $p['stock'] ?></td>
-                        <td>
-                            <button type="button" class="btn-seleccionar" onclick='seleccionarProducto(<?= json_encode($p['id']) ?>, <?= json_encode($p['name']) ?>, <?= json_encode($p['price']) ?>)'>
-                                Seleccionar
-                            </button>
-                        </td>
+                        <td><button type="button" class="btn-seleccionar">Seleccionar</button></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
+</div>
+
+<div class="submodal-cantidad" id="submodalCantidad">
+    <div class="submodal-cantidad-content">
+        <h3 id="lblProdNombre" style="color:#1f7a1f; margin-top:0;"></h3>
+        <p id="lblProdStock" style="font-size:13px; color:#666;"></p>
+        <input type="number" id="txtSubmodalCant" class="input-submodal-cant" value="" min="1" onkeydown="manejarTecladoSubmodal(event)">
+        <div style="margin-top:15px; display:flex; gap:10px; justify-content:center;">
+            <button type="button" onclick="cerrarSubmodalCant()" style="background:#666; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer;">Cancelar</button>
+            <button type="button" id="btnAceptarSubmodal" onclick="confirmarAdicionProducto()" style="background:#2f8b2f; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:bold;">Aceptar</button>
+        </div>
     </div>
 </div>
 
@@ -836,23 +763,43 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
 </footer>
 
 <script>
-let filaActual = null;
+let indiceActivoCli = -1;
+let indiceActivoProd = -1;
+let prodTemporal = null;
 
-function abrirModal(btn) {
-    filaActual = btn.closest("tr");
-    
-    // --- LIMPIEZA INTELIGENTE DE BÚSQUEDA ANTERIOR ---
+const elementosCiclo = ["btnDisparadorClientes", "metodo_pago", "btnAbrirInventario"];
+
+document.addEventListener("keydown", function(e) {
+    if (e.key === "Tab") {
+        let activeId = document.activeElement.id;
+        if (elementosCiclo.includes(activeId)) {
+            e.preventDefault();
+            let indexActual = elementosCiclo.indexOf(activeId);
+            let siguienteIndex = (indexActual + 1) % elementosCiclo.length;
+            document.getElementById(elementosCiclo[siguienteIndex]).focus();
+        }
+    }
+});
+
+// =========================================================================
+// CONTROL DEL MENÚ DE PRODUCTOS (Navegación con Flechas y Enter)
+// =========================================================================
+function abrirBuscadorCentralizado() {
     let inputBuscar = document.getElementById("buscarProducto");
-    inputBuscar.value = ""; // Vaciamos el input de texto
+    inputBuscar.value = "";
     
-    // Volvemos a hacer visibles todas las filas de productos
     let filas = document.querySelectorAll("#tablaProductos tr");
-    filas.forEach(f => f.style.display = "");
+    filas.forEach((f, idx) => {
+        f.style.display = "";
+        if(idx === 0) {
+            f.classList.add("fila-activa");
+        } else {
+            f.classList.remove("fila-activa");
+        }
+    });
     
-    // Mostramos el modal
+    indiceActivoProd = 0; 
     document.getElementById("modalProductos").style.display = "flex";
-    
-    // Opcional: Ponemos el foco automáticamente en el buscador para escribir directo
     setTimeout(() => inputBuscar.focus(), 100);
 }
 
@@ -860,28 +807,110 @@ function cerrarModal() {
     document.getElementById("modalProductos").style.display = "none";
 }
 
-function seleccionarProducto(id, nombre, precio) {
-    filaActual.querySelector(".codigo-input").value = id;
-    filaActual.querySelector(".descripcion-input").value = nombre;
-    filaActual.querySelector(".precio-input").value = precio;
+function prepararCantidad(id, nombre, precio, stock) {
+    prodTemporal = { id, nombre, precio };
+    document.getElementById("lblProdNombre").innerText = nombre;
+    document.getElementById("lblProdStock").innerText = "Disponible en Stock: " + stock;
+    
+    let inputCant = document.getElementById("txtSubmodalCant");
+    inputCant.value = ""; 
+    
+    document.getElementById("submodalCantidad").style.display = "flex";
+    setTimeout(() => {
+        inputCant.focus();
+    }, 100);
+}
 
-    calcularFila(filaActual.querySelector(".cantidades-input"));
-    cerrarModal();
+function cerrarSubmodalCant() {
+    document.getElementById("submodalCantidad").style.display = "none";
+    prodTemporal = null;
+}
 
-    // --- CÁLCULO DE LÍNEA AUTOMÁTICA INTELIGENTE ---
+function confirmarAdicionProducto() {
+    if (!prodTemporal) return;
+    
+    let cantidadValor = document.getElementById("txtSubmodalCant").value;
+    let cantidad = parseFloat(cantidadValor) || 1; 
     let tbody = document.getElementById("bodyFactura");
-    if (filaActual === tbody.lastElementChild) {
-        agregarFila();
+    let numeroFila = tbody.rows.length + 1;
+
+    let filaHtml = `
+        <tr>
+            <td>${numeroFila}</td>
+            <td><input type="text" class="codigo-input" name="codigo[]" value="${prodTemporal.id}" readonly></td>
+            <td><input type="text" class="descripcion-input" name="descripcion[]" value="${prodTemporal.nombre}" readonly></td>
+            <td><input type="number" class="cantidades-input" name="cantidad[]" value="${cantidad}" onchange="calcularFila(this)"></td>
+            <td><input type="text" class="precio-input" name="precio[]" value="${parseFloat(prodTemporal.precio).toFixed(2)}" readonly></td>
+            <td class="total-fila">${(cantidad * prodTemporal.precio).toFixed(2)}</td>
+            <td><button type="button" class="btn-eliminar" onclick="eliminarFila(this)">X</button></td>
+        </tr>
+    `;
+
+    tbody.insertAdjacentHTML("beforeend", filaHtml);
+    calcularTotales();
+    
+    cerrarSubmodalCant();
+    cerrarModal();
+    
+    document.getElementById("btnAbrirInventario").focus();
+}
+
+function manejarTecladoProductos(e) {
+    let filasVisibles = Array.from(document.querySelectorAll("#tablaProductos tr")).filter(f => f.style.display !== "none");
+    if (filasVisibles.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+        e.preventDefault();
+        filasVisibles.forEach(f => f.classList.remove("fila-activa"));
+        indiceActivoProd = (indiceActivoProd + 1) % filasVisibles.length;
+        filasVisibles[indiceActivoProd].classList.add("fila-activa");
+        filasVisibles[indiceActivoProd].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        filasVisibles.forEach(f => f.classList.remove("fila-activa"));
+        indiceActivoProd = (indiceActivoProd - 1 + filasVisibles.length) % filasVisibles.length;
+        filasVisibles[indiceActivoProd].classList.add("fila-activa");
+        filasVisibles[indiceActivoProd].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (indiceActivoProd >= 0 && indiceActivoProd < filasVisibles.length) {
+            filasVisibles[indiceActivoProd].click(); 
+        }
     }
 }
 
+document.getElementById("buscarProducto").addEventListener("input", function() {
+    let filtro = this.value.toLowerCase();
+    let primeraFilaAsignada = false;
+    
+    document.querySelectorAll("#tablaProductos tr").forEach(f => {
+        let cumple = f.innerText.toLowerCase().includes(filtro);
+        f.style.display = cumple ? "" : "none";
+        f.classList.remove("fila-activa");
+        
+        if (cumple && !primeraFilaAsignada) {
+            f.classList.add("fila-activa");
+            primeraFilaAsignada = true;
+        }
+    });
+    indiceActivoProd = 0; 
+});
+
+function manejarTecladoSubmodal(e) {
+    if (e.key === "Enter") {
+        e.preventDefault();
+        confirmarAdicionProducto();
+    }
+}
+
+// =========================================================================
+// PROCESOS AUXILIARES DE FACTURACIÓN (Totales, Clientes)
+// =========================================================================
 function calcularFila(input) {
     let fila = input.closest("tr");
-    let cantidad = parseFloat(fila.querySelector(".cantidades-input").value) || 0;
+    let cantidad = parseFloat(input.value) || 0;
     let precio = parseFloat(fila.querySelector(".precio-input").value) || 0;
-    let total = cantidad * precio;
-
-    fila.querySelector(".total-fila").innerText = total.toFixed(2);
+    fila.querySelector(".total-fila").innerText = (cantidad * precio).toFixed(2);
     calcularTotales();
 }
 
@@ -903,67 +932,29 @@ function calcularTotales() {
     document.getElementById("inputTotal").value = total.toFixed(2);
 }
 
-function agregarFila() {
-    let tbody = document.getElementById("bodyFactura");
-    let numero = tbody.rows.length + 1;
-
-    let fila = `
-        <tr>
-            <td>${numero}</td>
-            <td>
-                <div class="codigo-box">
-                    <input type="text" class="codigo-input" name="codigo[]" readonly>
-                    <button type="button" class="btn-buscar" onclick="abrirModal(this)">+</button>
-                </div>
-            </td>
-            <td>
-                <input type="text" class="descripcion-input" name="descripcion[]" readonly>
-            </td>
-            <td>
-                <input type="number" class="cantidades-input" name="cantidad[]" value="1" min="1" onchange="calcularFila(this)">
-            </td>
-            <td>
-                <input type="text" class="precio-input" name="precio[]" readonly>
-            </td>
-            <td class="total-fila">0.00</td>
-            <td>
-                <button type="button" class="btn-eliminar" onclick="eliminarFila(this)">X</button>
-            </td>
-        </tr>
-    `;
-    tbody.insertAdjacentHTML("beforeend", fila);
-}
-
 function eliminarFila(btn) {
-    let tbody = document.getElementById("bodyFactura");
-    
-    if (tbody.rows.length <= 1) {
-        let fila = btn.closest("tr");
-        fila.remove();
-        agregarFila();
-    } else {
-        let fila = btn.closest("tr");
-        fila.remove();
-    }
-    
-    recalcularNumeros();
+    btn.closest("tr").remove();
+    document.querySelectorAll("#bodyFactura tr").forEach((fila, index) => {
+        fila.cells[0].innerText = index + 1;
+    });
     calcularTotales();
 }
 
-function recalcularNumeros() {
-    let filas = document.querySelectorAll("#bodyFactura tr");
-    filas.forEach((fila, index) => {
-        fila.cells[0].innerText = index + 1;
-    });
-}
-
 function abrirModalClientes() {
-    // Limpieza de buscador de clientes al abrir
     let inputBuscarCliente = document.getElementById("buscarCliente");
     inputBuscarCliente.value = "";
-    let filasClientes = document.querySelectorAll("#tablaClientes tr");
-    filasClientes.forEach(f => f.style.display = "");
-
+    
+    let filas = document.querySelectorAll("#tablaClientes tr");
+    filas.forEach((f, idx) => {
+        f.style.display = "";
+        if(idx === 0) {
+            f.classList.add("fila-activa");
+        } else {
+            f.classList.remove("fila-activa");
+        }
+    });
+    
+    indiceActivoCli = 0;
     document.getElementById("modalClientes").style.display = "flex";
     setTimeout(() => inputBuscarCliente.focus(), 100);
 }
@@ -974,28 +965,62 @@ function cerrarModalClientes() {
 
 function seleccionarCliente(id, nombre) {
     document.getElementById("cliente_id").value = id;
-    document.querySelector(".btn-clientes").innerText = nombre;
+    document.getElementById("btnDisparadorClientes").innerText = nombre;
     cerrarModalClientes();
+    document.getElementById("metodo_pago").focus();
 }
 
-// Filtros de búsqueda en tiempo real dentro de los modales
-document.getElementById("buscarProducto").addEventListener("input", function() {
-    let filtro = this.value.toLowerCase();
-    let filas = document.querySelectorAll("#tablaProductos tr");
-    filas.forEach(f => {
-        let texto = f.innerText.toLowerCase();
-        f.style.display = texto.includes(filtro) ? "" : "none";
-    });
-});
+function manejarTecladoClientes(e) {
+    let filasVisibles = Array.from(document.querySelectorAll("#tablaClientes tr")).filter(f => f.style.display !== "none");
+    if (filasVisibles.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+        e.preventDefault();
+        filasVisibles.forEach(f => f.classList.remove("fila-activa"));
+        indiceActivoCli = (indiceActivoCli + 1) % filasVisibles.length;
+        filasVisibles[indiceActivoCli].classList.add("fila-activa");
+        filasVisibles[indiceActivoCli].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        filasVisibles.forEach(f => f.classList.remove("fila-activa"));
+        indiceActivoCli = (indiceActivoCli - 1 + filasVisibles.length) % filasVisibles.length;
+        filasVisibles[indiceActivoCli].classList.add("fila-activa");
+        filasVisibles[indiceActivoCli].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (indiceActivoCli >= 0 && indiceActivoCli < filasVisibles.length) {
+            filasVisibles[indiceActivoCli].click();
+        }
+    }
+}
 
 document.getElementById("buscarCliente").addEventListener("input", function() {
     let filtro = this.value.toLowerCase();
-    let filas = document.querySelectorAll("#tablaClientes tr");
-    filas.forEach(f => {
-        let texto = f.innerText.toLowerCase();
-        f.style.display = texto.includes(filtro) ? "" : "none";
+    let primeraFilaAsignada = false;
+    
+    document.querySelectorAll("#tablaClientes tr").forEach(f => {
+        let cumple = f.innerText.toLowerCase().includes(filtro);
+        f.style.display = cumple ? "" : "none";
+        f.classList.remove("fila-activa");
+        
+        if (cumple && !primeraFilaAsignada) {
+            f.classList.add("fila-activa");
+            primeraFilaAsignada = true;
+        }
     });
+    indiceActivoCli = 0;
 });
+
+window.addEventListener("keydown", function(e) {
+    if (e.altKey && (e.key === "c" || e.key === "C")) {
+        e.preventDefault();
+        if (!document.getElementById("btnDisparadorClientes").disabled) abrirModalClientes();
+    }
+    if (e.altKey && (e.key === "p" || e.key === "P")) {
+        let selectPago = document.getElementById("metodo_pago");
+        if (selectPago) { e.preventDefault(); selectPago.focus(); }
+    }
+}, true);
 </script>
 
 </body>
