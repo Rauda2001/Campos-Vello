@@ -294,7 +294,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             outline: none;
         }
         
-        .btn-clientes:focus, select#metodo_pago:focus, .btn-inventario-arriba:focus {
+        .btn-clientes:focus, select#metodo_pago:focus, .btn-inventario-arriba:focus, .btn-guardar:focus {
             box-shadow: 0 0 0 3px #ffeb3b;
         }
 
@@ -429,6 +429,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             font-size:15px;
             font-weight:bold;
             cursor:pointer;
+            outline: none;
         }
 
         .btn-imprimir-pdf {
@@ -562,12 +563,12 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
 <div class="contenedor">
 
     <div class="barra-sap">
-        <a href="nueva_factura.php?id=<?= $id_primero ?>" class="btn-sap <?= ($factura_id_actual == $id_primero || !$id_primero) ? 'disabled' : '' ?>">|◀</a>
-        <a href="nueva_factura.php?id=<?= $id_anterior ?>" class="btn-sap <?= !$id_anterior ? 'disabled' : '' ?>">◀</a>
-        <a href="nueva_factura.php?id=<?= $id_siguiente ?>" class="btn-sap <?= !$id_siguiente ? 'disabled' : '' ?>">▶</a>
-        <a href="nueva_factura.php?id=<?= $id_ultimo ?>" class="btn-sap <?= ($factura_id_actual == $id_ultimo || !$id_ultimo || !$factura_id_actual) ? 'disabled' : '' ?>">▶|</a>
+        <a tabindex="-1" href="nueva_factura.php?id=<?= $id_primero ?>" class="btn-sap <?= ($factura_id_actual == $id_primero || !$id_primero) ? 'disabled' : '' ?>">|◀</a>
+        <a tabindex="-1" href="nueva_factura.php?id=<?= $id_anterior ?>" class="btn-sap <?= !$id_anterior ? 'disabled' : '' ?>">◀</a>
+        <a tabindex="-1" href="nueva_factura.php?id=<?= $id_siguiente ?>" class="btn-sap <?= !$id_siguiente ? 'disabled' : '' ?>">▶</a>
+        <a tabindex="-1" href="nueva_factura.php?id=<?= $id_ultimo ?>" class="btn-sap <?= ($factura_id_actual == $id_ultimo || !$id_ultimo || !$factura_id_actual) ? 'disabled' : '' ?>">▶|</a>
         <div class="separador-sap"></div>
-        <a href="nueva_factura.php" class="btn-crear-sap">Crear nueva factura</a>
+        <a tabindex="-1" href="nueva_factura.php" class="btn-crear-sap">Crear nueva factura</a>
         <span style="margin-left:auto; font-size:13px; font-weight:bold; color:#ffffff;">
             <?= $factura_id_actual ? "Factura Histórica: #$factura_id_actual" : "Factura #$siguiente_id_factura" ?>
         </span>
@@ -615,7 +616,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
                 <input type="text" value="<?= $fecha_actual ?>" readonly style="width: 110px; height: 38px; border-radius:8px; border:none; text-align:center;">
             </div>
 
-            <a href="ventas.php" class="volver-panel">Volver al panel</a>
+            <a tabindex="-1" href="ventas.php" class="volver-panel">Volver al panel</a>
         </div>
     </div>
 
@@ -680,7 +681,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
                     <input type="hidden" name="total" id="inputTotal" value="<?= $factura_guardada ? $factura_guardada['total'] : '0.00' ?>">
 
                     <?php if (!$factura_guardada): ?>
-                        <button type="submit" class="btn-guardar">Guardar Factura</button>
+                        <button type="submit" class="btn-guardar" id="btnGuardarFactura">Guardar Factura</button>
                     <?php else: ?>
                         <a href="generar_pdf.php?id=<?= $factura_id_actual ?>" target="_blank" class="btn-imprimir-pdf">🖨️ Abrir PDF / Imprimir</a>
                     <?php endif; ?>
@@ -767,16 +768,32 @@ let indiceActivoCli = -1;
 let indiceActivoProd = -1;
 let prodTemporal = null;
 
-const elementosCiclo = ["btnDisparadorClientes", "metodo_pago", "btnAbrirInventario"];
+// SE ACTUALIZA EL CICLO: Añadimos 'btnGuardarFactura' al final
+const elementosCiclo = ["btnDisparadorClientes", "metodo_pago", "btnAbrirInventario", "btnGuardarFactura"];
+
+// Auto-enfocar el botón Seleccionar Cliente al cargar
+window.addEventListener("DOMContentLoaded", function() {
+    const btnClientes = document.getElementById("btnDisparadorClientes");
+    if (btnClientes && !btnClientes.disabled) {
+        btnClientes.focus();
+    }
+});
 
 document.addEventListener("keydown", function(e) {
     if (e.key === "Tab") {
         let activeId = document.activeElement.id;
-        if (elementosCiclo.includes(activeId)) {
+        
+        // Si el botón de guardar no existe en la vista (por ejemplo, en modo histórico), lo saltamos del ciclo
+        let listaElementosEfectiva = [...elementosCiclo];
+        if (!document.getElementById("btnGuardarFactura")) {
+            listaElementosEfectiva = elementosCiclo.filter(id => id !== "btnGuardarFactura");
+        }
+
+        if (listaElementosEfectiva.includes(activeId)) {
             e.preventDefault();
-            let indexActual = elementosCiclo.indexOf(activeId);
-            let siguienteIndex = (indexActual + 1) % elementosCiclo.length;
-            document.getElementById(elementosCiclo[siguienteIndex]).focus();
+            let indexActual = listaElementosEfectiva.indexOf(activeId);
+            let siguienteIndex = (indexActual + 1) % listaElementosEfectiva.length;
+            document.getElementById(listaElementosEfectiva[siguienteIndex]).focus();
         }
     }
 });
