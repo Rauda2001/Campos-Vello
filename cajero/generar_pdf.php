@@ -49,6 +49,10 @@ if (!$invoice) {
     die('Factura no encontrada'); 
 }
 
+// VARIABLES FISCALES DINÁMICAS (Para FCF o CCF con numeración independiente)
+$tipo_documento_siglas = htmlspecialchars($invoice['tipo_documento'] ?? 'FCF'); 
+$correlativo_legal = htmlspecialchars($invoice['num_documento'] ?? '1');
+
 // 2. Obtener items de la factura
 $itemsStmt = $pdo->prepare('SELECT ii.*, p.name 
                             FROM invoice_items ii 
@@ -282,13 +286,13 @@ ob_start();
             
             <div class="company-details-box">
                 <h1 style="font-size: 14pt; margin: 0 0 10px 0; color: var(--green-dark);">
-                    FACTURA DE VENTA
+                    
                 </h1>
                 <div style="font-size: 12pt; margin-bottom: 5px; color: var(--green-dark);">
                     <strong>CAMPO VELLO</strong>
                 </div>
                 
-                <p style="margin: 2px 0;"><strong>No. de Factura:</strong> <?php echo htmlspecialchars($invoice['id']); ?></p>
+                <p style="margin: 2px 0;"><strong>No. de <?= $tipo_documento_siglas ?>:</strong> <?php echo $correlativo_legal; ?></p>
                 
                 <p style="margin: 2px 0;">
                     <strong>Fecha y Hora:</strong> 
@@ -402,9 +406,9 @@ if (isset($dompdf)) {
     // Guardar el PDF en el servidor
     file_put_contents($path, $output);
     
-    // Enviar el PDF directamente al navegador
+    // Enviar el PDF directamente al navegador con el nombre dinámico del tipo de archivo
     header('Content-Type: application/pdf');
-    header('Content-Disposition: inline; filename="factura_'.$invoice['id'].'.pdf"');
+    header('Content-Disposition: inline; filename="'.$tipo_documento_siglas.'_'.$correlativo_legal.'.pdf"');
     echo $output; 
     exit;
 }

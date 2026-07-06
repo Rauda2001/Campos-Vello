@@ -26,8 +26,6 @@ $id_ultimo   = $pdo->query("SELECT MAX(id) FROM facturas")->fetchColumn();
 $id_anterior = null;
 $id_siguiente = null;
 
-$siguiente_id_factura = $id_ultimo ? ($id_ultimo + 1) : 1;
-
 if ($factura_id_actual) {
     $stmt = $pdo->prepare("
         SELECT f.*, c.name AS cliente_nombre 
@@ -56,18 +54,33 @@ if ($factura_id_actual) {
     $id_siguiente = null; 
 }
 
+// Obtener los próximos correlativos aproximados para mostrarlos dinámicamente en JS
+$ultimo_fcf = $pdo->query("SELECT MAX(num_documento) FROM facturas WHERE tipo_documento = 'FCF'")->fetchColumn();
+$prox_fcf = $ultimo_fcf ? (intval($ultimo_fcf) + 1) : 1;
+
+$ultimo_ccf = $pdo->query("SELECT MAX(num_documento) FROM facturas WHERE tipo_documento = 'CCF'")->fetchColumn();
+$prox_ccf = $ultimo_ccf ? (intval($ultimo_ccf) + 1) : 1;
+
 // =========================================================================
-// LÓGICA PARA GUARDAR LA FACTURA CON EL MÉTODO DE PAGO
+// LÓGICA PARA GUARDAR LA FACTURA CON EL MÉTODO DE PAGO Y CORRELATIVOS
 // =========================================================================
 $error_mensaje = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$factura_id_actual) {
 
-    $cliente_id  = $_POST['cliente_id'] ?? null;
-    $metodo_pago = $_POST['metodo_pago'] ?? 'Efectivo'; 
-    $subtotal    = $_POST['subtotal'] ?? 0;
-    $iva         = $_POST['iva'] ?? 0;
-    $total       = $_POST['total'] ?? 0;
+    $cliente_id     = $_POST['cliente_id'] ?? null;
+    $tipo_documento = $_POST['tipo_documento'] ?? 'FCF'; // FCF o CCF
+    $metodo_pago    = $_POST['metodo_pago'] ?? 'Efectivo'; 
+    $subtotal       = $_POST['subtotal'] ?? 0;
+    
+    // REGLA FISCAL: Solo CCF aplica y desglosa el 13% de IVA
+    if ($tipo_documento === 'CCF') {
+        $iva = $subtotal * 0.13;
+    } else {
+        $iva = 0; 
+    }
+    $total = $subtotal + $iva;
+
     $user_id     = $_SESSION['user']['id'] ?? null; 
 
     $codigos      = $_POST['codigo'] ?? [];
@@ -78,11 +91,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$factura_id_actual) {
         try {
             $pdo->beginTransaction();
 
+            // 👈 MEJORA: Buscar el último correlativo real de ESTE tipo de documento de forma segura
+            $stmtMax = $pdo->prepare("SELECT MAX(num_documento) FROM facturas WHERE tipo_documento = ? FOR UPDATE");
+            $stmtMax->execute([$tipo_documento]);
+            $ultimo_num = $stmtMax->fetchColumn();
+            $siguiente_num_documento = $ultimo_num ? (intval($ultimo_num) + 1) : 1;
+
+            // Guardar incluyendo el tipo_documento y su num_documento correspondiente
             $stmtFactura = $pdo->prepare("
-                INSERT INTO facturas (user_id, client_id, metodo_pago, subtotal, iva_amount, total, created_at) 
-                VALUES (?, ?, ?, ?, ?, ?, NOW())
+                INSERT INTO facturas (user_id, client_id, tipo_documento, num_documento, metodo_pago, subtotal, iva_amount, total, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
-            $stmtFactura->execute([$user_id, $cliente_id, $metodo_pago, $subtotal, $iva, $total]);
+            $stmtFactura->execute([$user_id, $cliente_id, $tipo_documento, $siguiente_num_documento, $metodo_pago, $subtotal, $iva, $total]);
             
             $factura_id = $pdo->lastInsertId();
 
@@ -294,7 +314,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             outline: none;
         }
         
-        .btn-clientes:focus, select#metodo_pago:focus, .btn-inventario-arriba:focus, .btn-guardar:focus {
+        .btn-clientes:focus, select#metodo_pago:focus, select#tipo_documento:focus, .btn-inventario-arriba:focus, .btn-guardar:focus {
             box-shadow: 0 0 0 3px #ffeb3b;
         }
 
@@ -547,6 +567,10 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             outline:none;
         }
 
+        select#tipo_documento:focus {
+            box-shadow: 0 0 0 3px #ffeb3b;
+        }
+
         footer{
             margin-top:25px;
             background:linear-gradient(135deg,#1f7a1f,#2f8b2f);
@@ -569,8 +593,13 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
         <a tabindex="-1" href="nueva_factura.php?id=<?= $id_ultimo ?>" class="btn-sap <?= ($factura_id_actual == $id_ultimo || !$id_ultimo || !$factura_id_actual) ? 'disabled' : '' ?>">▶|</a>
         <div class="separador-sap"></div>
         <a tabindex="-1" href="nueva_factura.php" class="btn-crear-sap">Crear nueva factura</a>
-        <span style="margin-left:auto; font-size:13px; font-weight:bold; color:#ffffff;">
-            <?= $factura_id_actual ? "Factura Histórica: #$factura_id_actual" : "Factura #$siguiente_id_factura" ?>
+        
+        <span style="margin-left:auto; font-size:13px; font-weight:bold; color:#ffffff;" id="lblCorrelativoSap">
+            <?php if ($factura_guardada): ?>
+                <?= htmlspecialchars($factura_guardada['tipo_documento'] ?? 'FCF') ?> #<?= htmlspecialchars($factura_guardada['num_documento'] ?? '1') ?> (ID: #<?= $factura_id_actual ?>)
+            <?php else: ?>
+                Próximo Documento: FCF #<?= $prox_fcf ?>
+            <?php endif; ?>
         </span>
     </div>
 
@@ -593,6 +622,18 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
 
         <div class="header-derecha">
             <div class="campo-header">
+                <label>Tipo Documento <span style="color: #ffeb3b; font-size: 11px;">[Alt + D]</span></label>
+                <?php if ($factura_guardada): ?>
+                    <input type="text" value="<?= htmlspecialchars($factura_guardada['tipo_documento'] ?? 'FCF') ?>" readonly style="width: 140px; height: 38px; border-radius: 8px; text-align: center; font-weight: bold; border: none; background: #e0e0e0; color: #333;">
+                <?php else: ?>
+                    <select name="tipo_documento" id="tipo_documento" form="formFactura" onchange="cambiarTipoDocumento()" style="width: 140px; height: 38px; border-radius: 8px; font-weight: bold; outline: none; border: none; padding: 0 10px;">
+                        <option value="FCF">📄 FCF (Consumidor)</option>
+                        <option value="CCF">🏢 CCF (Crédito Fiscal)</option>
+                    </select>
+                <?php endif; ?>
+            </div>
+
+            <div class="campo-header">
                 <label>Cliente <span style="color: #ffeb3b; font-size: 11px;">[Alt + C]</span></label>
                 <button type="button" class="btn-clientes" id="btnDisparadorClientes" onclick="abrirModalClientes()" <?= $factura_guardada ? 'disabled' : '' ?>>
                     <?= $factura_guardada ? htmlspecialchars($factura_guardada['cliente_nombre']) : 'Seleccionar Cliente' ?>
@@ -602,9 +643,9 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
             <div class="campo-header">
                 <label>Método de Pago <span style="color: #ffeb3b; font-size: 11px;">[Alt + P]</span></label>
                 <?php if ($factura_guardada): ?>
-                    <input type="text" value="<?= htmlspecialchars($factura_guardada['metodo_pago'] ?? 'Efectivo') ?>" readonly style="width: 160px; height: 38px; border-radius: 8px; text-align: center; font-weight: bold;">
+                    <input type="text" value="<?= htmlspecialchars($factura_guardada['metodo_pago'] ?? 'Efectivo') ?>" readonly style="width: 160px; height: 38px; border-radius: 8px; text-align: center; font-weight: bold; border: none; background: #e0e0e0; color: #333;">
                 <?php else: ?>
-                    <select name="metodo_pago" id="metodo_pago" form="formFactura" style="width: 160px; height: 38px; border-radius: 8px; font-weight: bold; outline: none;">
+                    <select name="metodo_pago" id="metodo_pago" form="formFactura" style="width: 160px; height: 38px; border-radius: 8px; font-weight: bold; outline: none; border: none; padding: 0 10px;">
                         <option value="Efectivo">💵 Efectivo</option>
                         <option value="Tarjeta">💳 Tarjeta</option>
                     </select>
@@ -648,7 +689,7 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
                         <?php foreach ($detalles_guardados as $index => $item): ?>
                             <tr>
                                 <td><?= $index + 1 ?></td>
-                                <td><input type="text" class="codigo-input" name="codigo[]" value="<?= $item['product_id'] ?>" readonly></td>
+                                <td><input type="text" class="codigo-input" name="codigo[]" value="${item['product_id']}" readonly></td>
                                 <td><input type="text" class="descripcion-input" name="descripcion[]" value="<?= htmlspecialchars($item['producto_nombre'] ?? '') ?>" readonly></td>
                                 <td><input type="number" class="cantidades-input" name="cantidad[]" value="<?= $item['quantity'] ?>" readonly></td>
                                 <td><input type="text" class="precio-input" name="precio[]" value="<?= $item['price'] ?>" readonly></td>
@@ -768,22 +809,22 @@ let indiceActivoCli = -1;
 let indiceActivoProd = -1;
 let prodTemporal = null;
 
-// SE ACTUALIZA EL CICLO: Añadimos 'btnGuardarFactura' al final
-const elementosCiclo = ["btnDisparadorClientes", "metodo_pago", "btnAbrirInventario", "btnGuardarFactura"];
+// Variables heredadas de PHP para saber las series dinámicamente en pantalla
+const proxFCF = <?= $prox_fcf ?>;
+const proxCCF = <?= $prox_ccf ?>;
 
-// Auto-enfocar el botón Seleccionar Cliente al cargar
+const elementosCiclo = ["tipo_documento", "btnDisparadorClientes", "metodo_pago", "btnAbrirInventario", "btnGuardarFactura"];
+
 window.addEventListener("DOMContentLoaded", function() {
-    const btnClientes = document.getElementById("btnDisparadorClientes");
-    if (btnClientes && !btnClientes.disabled) {
-        btnClientes.focus();
+    const txtDoc = document.getElementById("tipo_documento");
+    if (txtDoc && !txtDoc.disabled) {
+        txtDoc.focus();
     }
 });
 
 document.addEventListener("keydown", function(e) {
     if (e.key === "Tab") {
         let activeId = document.activeElement.id;
-        
-        // Si el botón de guardar no existe en la vista (por ejemplo, en modo histórico), lo saltamos del ciclo
         let listaElementosEfectiva = [...elementosCiclo];
         if (!document.getElementById("btnGuardarFactura")) {
             listaElementosEfectiva = elementosCiclo.filter(id => id !== "btnGuardarFactura");
@@ -799,8 +840,24 @@ document.addEventListener("keydown", function(e) {
 });
 
 // =========================================================================
-// CONTROL DEL MENÚ DE PRODUCTOS (Navegación con Flechas y Enter)
+// INTERRUPTOR DE DOCUMENTO E IVA DINÁMICO
 // =========================================================================
+function cambiarTipoDocumento() {
+    let selectDoc = document.getElementById("tipo_documento");
+    let tipoDoc = selectDoc ? selectDoc.value : 'FCF';
+    let lblSap = document.getElementById("lblCorrelativoSap");
+
+    // Actualiza dinámicamente la barra superior estilo SAP de asistencia visual
+    if (lblSap) {
+        if (tipoDoc === 'CCF') {
+            lblSap.innerText = `Próximo Documento: CCF #${proxCCF}`;
+        } else {
+            lblSap.innerText = `Próximo Documento: FCF #${proxFCF}`;
+        }
+    }
+    calcularTotales();
+}
+
 function abrirBuscadorCentralizado() {
     let inputBuscar = document.getElementById("buscarProducto");
     inputBuscar.value = "";
@@ -937,7 +994,16 @@ function calcularTotales() {
         subtotal += parseFloat(td.innerText) || 0;
     });
 
-    let iva = subtotal * 0.13;
+    let selectDoc = document.getElementById("tipo_documento");
+    let tipoDoc = selectDoc ? selectDoc.value : 'FCF';
+
+    let iva = 0;
+    if (tipoDoc === 'CCF') {
+        iva = subtotal * 0.13; 
+    } else {
+        iva = 0; 
+    }
+
     let total = subtotal + iva;
 
     document.getElementById("subtotal").innerText = subtotal.toFixed(2);
@@ -1029,6 +1095,10 @@ document.getElementById("buscarCliente").addEventListener("input", function() {
 });
 
 window.addEventListener("keydown", function(e) {
+    if (e.altKey && (e.key === "d" || e.key === "D")) {
+        let selectDoc = document.getElementById("tipo_documento");
+        if (selectDoc) { e.preventDefault(); selectDoc.focus(); }
+    }
     if (e.altKey && (e.key === "c" || e.key === "C")) {
         e.preventDefault();
         if (!document.getElementById("btnDisparadorClientes").disabled) abrirModalClientes();
