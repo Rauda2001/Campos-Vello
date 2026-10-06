@@ -38,7 +38,7 @@ if ($factura_id_actual) {
 
     if ($factura_guardada) {
         $stmtDet = $pdo->prepare("
-            SELECT i.*, p.name AS producto_nombre 
+            SELECT i.*, p.name AS producto_nombre, p.codigo AS producto_codigo 
             FROM invoice_items i 
             LEFT JOIN productos p ON i.product_id = p.id 
             WHERE i.invoice_id = ?
@@ -83,21 +83,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$factura_id_actual) {
 
     $user_id     = $_SESSION['user']['id'] ?? null; 
 
-    $codigos      = $_POST['codigo'] ?? [];
+    $product_ids  = $_POST['product_id'] ?? [];
     $cantidades   = $_POST['cantidad'] ?? [];
     $precios      = $_POST['precio'] ?? [];
 
-    if (!empty($cliente_id) && !empty($codigos) && count($codigos) > 0) {
+    if (!empty($cliente_id) && !empty($product_ids) && count($product_ids) > 0) {
         try {
             $pdo->beginTransaction();
 
-            // 👈 MEJORA: Buscar el último correlativo real de ESTE tipo de documento de forma segura
             $stmtMax = $pdo->prepare("SELECT MAX(num_documento) FROM facturas WHERE tipo_documento = ? FOR UPDATE");
             $stmtMax->execute([$tipo_documento]);
             $ultimo_num = $stmtMax->fetchColumn();
             $siguiente_num_documento = $ultimo_num ? (intval($ultimo_num) + 1) : 1;
 
-            // Guardar incluyendo el tipo_documento y su num_documento correspondiente
             $stmtFactura = $pdo->prepare("
                 INSERT INTO facturas (user_id, client_id, tipo_documento, num_documento, metodo_pago, subtotal, iva_amount, total, created_at) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
@@ -117,14 +115,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$factura_id_actual) {
                 WHERE id = ?
             ");
 
-            foreach ($codigos as $index => $codigo) {
-                if (empty($codigo)) continue;
+            foreach ($product_ids as $index => $prod_id) {
+                if (empty($prod_id)) continue;
 
                 $cantidad = floatval($cantidades[$index]);
                 $precio   = floatval($precios[$index]);
 
-                $stmtDetalle->execute([$factura_id, $codigo, $cantidad, $precio]);
-                $stmtStock->execute([$cantidad, $codigo]);
+                $stmtDetalle->execute([$factura_id, $prod_id, $cantidad, $precio]);
+                $stmtStock->execute([$cantidad, $prod_id]);
             }
 
             $pdo->commit();
@@ -689,7 +687,10 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
                         <?php foreach ($detalles_guardados as $index => $item): ?>
                             <tr>
                                 <td><?= $index + 1 ?></td>
-                                <td><input type="text" class="codigo-input" name="codigo[]" value="${item['product_id']}" readonly></td>
+                                <td>
+                                    <input type="hidden" name="product_id[]" value="<?= $item['product_id'] ?>">
+                                    <input type="text" class="codigo-input" name="codigo[]" value="<?= htmlspecialchars($item['producto_codigo'] ?? $item['product_id']) ?>" readonly>
+                                </td>
                                 <td><input type="text" class="descripcion-input" name="descripcion[]" value="<?= htmlspecialchars($item['producto_nombre'] ?? '') ?>" readonly></td>
                                 <td><input type="number" class="cantidades-input" name="cantidad[]" value="<?= $item['quantity'] ?>" readonly></td>
                                 <td><input type="text" class="precio-input" name="precio[]" value="<?= $item['price'] ?>" readonly></td>
@@ -769,12 +770,20 @@ $fecha_actual = $factura_guardada ? date('d/m/Y', strtotime($factura_guardada['c
         </div>
         <table>
             <thead>
-                <tr><th>ID</th><th>Nombre</th><th>Categoría</th><th>Ubicación</th><th>Precio</th><th>Stock</th><th>Seleccionar</th></tr>
+                <tr>
+                    <th style="white-space: nowrap;">Código</th>
+                    <th>Nombre</th>
+                    <th>Categoría</th>
+                    <th>Ubicación</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Seleccionar</th>
+                </tr>
             </thead>
             <tbody id="tablaProductos">
                 <?php foreach($productos as $p): ?>
-                    <tr id="fila_p_<?= $p['id'] ?>" onclick='prepararCantidad(<?= json_encode($p['id']) ?>, <?= json_encode($p['name']) ?>, <?= json_encode($p['price']) ?>, <?= $p['stock'] ?>)'>
-                        <td><?= $p['id'] ?></td>
+                    <tr id="fila_p_<?= $p['id'] ?>" onclick='prepararCantidad(<?= json_encode($p['id']) ?>, <?= json_encode($p['codigo'] ?? 'N/A') ?>, <?= json_encode($p['name']) ?>, <?= json_encode($p['price']) ?>, <?= $p['stock'] ?>)'>
+                        <td style="white-space: nowrap;"><strong><?= htmlspecialchars($p['codigo'] ?? 'N/A') ?></strong></td>
                         <td><?= htmlspecialchars($p['name']) ?></td>
                         <td><?= htmlspecialchars($p['categoria']) ?></td>
                         <td><?= htmlspecialchars($p['location']) ?></td>
@@ -881,8 +890,8 @@ function cerrarModal() {
     document.getElementById("modalProductos").style.display = "none";
 }
 
-function prepararCantidad(id, nombre, precio, stock) {
-    prodTemporal = { id, nombre, precio };
+function prepararCantidad(id, codigo, nombre, precio, stock) {
+    prodTemporal = { id, codigo, nombre, precio };
     document.getElementById("lblProdNombre").innerText = nombre;
     document.getElementById("lblProdStock").innerText = "Disponible en Stock: " + stock;
     
@@ -911,7 +920,10 @@ function confirmarAdicionProducto() {
     let filaHtml = `
         <tr>
             <td>${numeroFila}</td>
-            <td><input type="text" class="codigo-input" name="codigo[]" value="${prodTemporal.id}" readonly></td>
+            <td>
+                <input type="hidden" name="product_id[]" value="${prodTemporal.id}">
+                <input type="text" class="codigo-input" name="codigo[]" value="${prodTemporal.codigo}" readonly>
+            </td>
             <td><input type="text" class="descripcion-input" name="descripcion[]" value="${prodTemporal.nombre}" readonly></td>
             <td><input type="number" class="cantidades-input" name="cantidad[]" value="${cantidad}" onchange="calcularFila(this)"></td>
             <td><input type="text" class="precio-input" name="precio[]" value="${parseFloat(prodTemporal.precio).toFixed(2)}" readonly></td>

@@ -27,8 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Acción: Agregar Producto
         if ($action === 'add') {
-            $stmt = $pdo->prepare('INSERT INTO productos (name, category_id, location, price, stock) VALUES (?, ?, ?, ?, ?)');
+            $stmt = $pdo->prepare('INSERT INTO productos (codigo, name, category_id, location, price, stock) VALUES (?, ?, ?, ?, ?, ?)');
             $stmt->execute([
+                trim($_POST['codigo']),
                 $_POST['name'],
                 $_POST['category_id'] !== '' ? $_POST['category_id'] : null, 
                 $_POST['location'],
@@ -42,9 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Acción: Eliminar Producto
         if ($action === 'delete') {
             $stmt = $pdo->prepare('DELETE FROM productos WHERE id=?');
-            // MODIFICACIÓN IMPORTANTE: Se debe asegurar que el producto no esté referenciado
-            // por ninguna factura antes de eliminar, o usar ON DELETE CASCADE en la BD. 
-            // Para mantener la consistencia, asumimos que la BD no tiene restricción.
             $stmt->execute([$_POST['id']]);
             header('Location: gestionar_productos.php');
             exit;
@@ -52,8 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Acción: Actualizar Producto (Editar)
         if ($action === 'update') {
-            $stmt = $pdo->prepare('UPDATE productos SET name = ?, category_id = ?, location = ?, price = ?, stock = ? WHERE id = ?');
+            $stmt = $pdo->prepare('UPDATE productos SET codigo = ?, name = ?, category_id = ?, location = ?, price = ?, stock = ? WHERE id = ?');
             $stmt->execute([
+                trim($_POST['codigo']),
                 $_POST['name'],
                 $_POST['category_id'] !== '' ? $_POST['category_id'] : null,
                 $_POST['location'],
@@ -89,11 +88,10 @@ $main_sql = '
     LEFT JOIN categorias c ON p.category_id = c.id';
 $params = [];
 
-// AÑADIR FILTRO DE BÚSQUEDA si existe
+// AÑADIR FILTRO DE BÚSQUEDA si existe (Busca por Nombre o Código)
 if ($is_searching) {
-    // Aplicamos el filtro en la tabla productos por el nombre
-    $count_sql .= ' WHERE name LIKE :search';
-    $main_sql .= ' WHERE p.name LIKE :search';
+    $count_sql .= ' WHERE name LIKE :search OR codigo LIKE :search';
+    $main_sql .= ' WHERE p.name LIKE :search OR p.codigo LIKE :search';
     $params[':search'] = $search_param;
 }
 
@@ -139,7 +137,6 @@ $stmt = $pdo->prepare($sql);
 
 // BIND todos los parámetros
 foreach ($params as $key => $value) {
-    // Determinamos el tipo de parámetro
     $type = PDO::PARAM_STR;
     if ($key === ':limit' || $key === ':offset') {
         $type = PDO::PARAM_INT;
@@ -150,7 +147,7 @@ foreach ($params as $key => $value) {
 $stmt->execute();
 $products = $stmt->fetchAll();
 
-// Obtener categorías (esta consulta no cambia)
+// Obtener categorías
 $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
 ?>
 
@@ -211,18 +208,16 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
             padding: 6px 8px;
         }
         
-        /* ESTILOS DE AGRUPACIÓN */
         .action-buttons-group {
-            display: flex;  /* Alinea los elementos horizontalmente */
-            gap: 8px;       /* Espacio entre ellos */
-            margin-bottom: 20px; /* Separación debajo del grupo */
-            align-items: center; /* Centra verticalmente todos los elementos */
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            align-items: center;
         }
 
-        /* ESTILO CLAVE: Asegura que los botones Agregar/Imprimir tengan el mismo ancho */
         .btn-equal-size {
-            width: 150px; /* Define un ancho fijo deseado para la igualdad */
-            text-align: center; /* Centra el texto dentro del botón */
+            width: 150px;
+            text-align: center;
         }
     </style>
 </head>
@@ -250,6 +245,7 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                 <input type='hidden' name='action' value='add'>
 
                 <div class="form-row">
+                    <input name='codigo' placeholder='Código / SKU' pattern="[a-zA-Z0-9\-_]+" required style="width: 120px;">
                     <input name='name' placeholder='Nombre' pattern="[a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s\-,()]+" required>
                     <select name='category_id' required>
                         <option value=''>Sin categoría</option>
@@ -270,27 +266,24 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                     Imprimir inventario
                 </a>
 
-                <!--Campo de búsqueda -->
+                <!-- Campo de búsqueda -->
                 <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-                    <input type="text" id="search_input" placeholder="Buscar producto..."
-                        pattern="a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s]+"
-                        value="<?= htmlspecialchars($search_query) ?>" style="width:200px;">
+                    <input type="text" id="search_input" placeholder="Buscar por nombre o código..."
+                        value="<?= htmlspecialchars($search_query) ?>" style="width:220px;">
                     <button type="button" class="btn" id="search_button">Buscar</button>
                     <?php if ($is_searching): ?>
                         <a href="gestionar_productos.php" class="btn" style="background-color:#ccc; color:#333;">X</a>
                         <span style="font-size: 0.9em; color: #059669; white-space: nowrap;">(<?= $total_products ?> resultados)</span>
                     <?php endif; ?>
                 </div>
-                            
-
             </div>
             
             <table class='table'>
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>Código</th>
                         <th>Nombre</th>
-                        <th>Categoria</th>
+                        <th>Categoría</th>
                         <th>Ubicación</th>
                         <th>Precio</th>
                         <th>Stock</th>
@@ -312,59 +305,69 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                     
                     <?php foreach ($products as $p) : ?>
                         <tr>
-                            <td><?= htmlspecialchars($p['id']) ?></td>
+                            <!-- white-space: nowrap para que el código quede en una sola línea -->
+                            <td style="white-space: nowrap;"><strong><?= htmlspecialchars($p['codigo'] ?? 'N/A') ?></strong></td>
                             <td><?= htmlspecialchars($p['name']) ?></td>
                             <td><?= htmlspecialchars($p['category']) ?></td>
                             <td><?= htmlspecialchars($p['location']) ?></td>
                             <td>$<?= number_format($p['price'], 2) ?></td>
                             <td><?= htmlspecialchars($p['stock']) ?></td>
-                            <td>
-                                <button class='btn' type="button" onclick="openModal('edit-<?= htmlspecialchars($p['id']) ?>')">Editar</button>
+                            
+                            <!-- Flexbox para botones alineados horizontalmente -->
+                            <td style="white-space: nowrap;">
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <button class='btn' type="button" onclick="openModal('edit-<?= htmlspecialchars($p['id']) ?>')">Editar</button>
 
-                                <form method='post' style='display:inline-block' onsubmit="return confirm('¿Eliminar este producto?');">
-                                    <?php echo csrf_field(); ?>
-                                    <input type='hidden' name='action' value='delete'>
-                                    <input type='hidden' name='id' value='<?= htmlspecialchars($p['id']) ?>'>
-                                    <button class='btn' style='background:#c62828'>Eliminar</button>
-                                </form>
+                                    <form method='post' style='display:inline-block; margin:0;' onsubmit="return confirm('¿Eliminar este producto?');">
+                                        <?php echo csrf_field(); ?>
+                                        <input type='hidden' name='action' value='delete'>
+                                        <input type='hidden' name='id' value='<?= htmlspecialchars($p['id']) ?>'>
+                                        <button class='btn' style='background:#c62828'>Eliminar</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
 
                         <div class="modal" id="edit-<?= htmlspecialchars($p['id']) ?>" aria-hidden="true" role="dialog" aria-labelledby="edit-label-<?= htmlspecialchars($p['id']) ?>">
                             <div class="modal-content">
                                 <button class="close" type="button" onclick="closeModal('edit-<?= htmlspecialchars($p['id']) ?>')" aria-label="Cerrar">&times;</button>
-                                <h3 id="edit-label-<?= htmlspecialchars($p['id']) ?>">Editar producto #<?= htmlspecialchars($p['id']) ?></h3>
+                                <h3 id="edit-label-<?= htmlspecialchars($p['id']) ?>">Editar producto (<?= htmlspecialchars($p['codigo'] ?? 'ID #' . $p['id']) ?>)</h3>
                                 <form method="post" class="form-row">
                                     <?php echo csrf_field(); ?>
                                     <input type="hidden" name="action" value="update">
                                     <input type="hidden" name="id" value="<?= htmlspecialchars($p['id']) ?>">
 
-                                    <label style="flex:1 1 100%">
+                                    <label style="flex:1 1 30%">
+                                        Código / SKU<br>
+                                        <input name="codigo" pattern="[a-zA-Z0-9\-_]+" required value="<?= htmlspecialchars($p['codigo'] ?? '') ?>">
+                                    </label>
+
+                                    <label style="flex:1 1 65%">
                                         Nombre<br>
                                         <input name="name" pattern="[a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s\-,()]+" required value="<?= htmlspecialchars($p['name']) ?>">
                                     </label>
 
-                                    <label>
+                                    <label style="flex:1 1 45%">
                                         Categoría<br>
                                         <select name="category_id">
-                                            <option value='' required>Sin categoría</option>
-                                            <?php foreach ($categories as $c) : ?>
+                                            <option value=''>Sin categoría</option>
+                                            <?php foreach ($categories as$c) : ?>
                                                 <option value="<?= htmlspecialchars($c['id']) ?>" <?= ($p['category_id'] == $c['id']) ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </label>
 
-                                    <label>
+                                    <label style="flex:1 1 45%">
                                         Ubicación<br>
                                         <input name="location" pattern="[a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s\-,()]+" value="<?= htmlspecialchars($p['location']) ?>">
                                     </label>
 
-                                    <label>
+                                    <label style="flex:1 1 45%">
                                         Precio<br>
                                         <input name="price" type="number" step="0.01" required value="<?= htmlspecialchars($p['price']) ?>">
                                     </label>
 
-                                    <label>
+                                    <label style="flex:1 1 45%">
                                         Stock<br>
                                         <input name="stock" type="number" required value="<?= htmlspecialchars($p['stock']) ?>">
                                     </label>
@@ -382,11 +385,8 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
             
             <!-- Lógica de paginación solo si NO se está buscando -->
             <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
-                <?php if (!$is_searching && $total_pages > 1) : ?>
-                    <?php 
-                        // Genera la URL base
-                        $base_url = 'gestionar_productos.php?page=';
-                    ?>
+                <?php if (!$is_searching &&$total_pages > 1) : ?>
+                    <?php $base_url = 'gestionar_productos.php?page='; ?>
 
                     <?php if ($page > 1) : ?>
                         <a href="<?= $base_url . ($page - 1) ?>" class="btn">Anterior</a>
@@ -395,9 +395,7 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                     <?php endif; ?>
 
                     <?php 
-                        // Muestra hasta 5 páginas centradas alrededor de la página actual
-                        $start = max(1, $page - 2);
-                        $end = min($total_pages, $page + 2);
+                        $start = max(1, $page - 2);$end = min($total_pages,$page + 2);
 
                         if ($start > 1) {
                             echo '<a href="' . $base_url . '1" class="btn" style="background-color:#eee; color:#333;">1</a>';
@@ -407,21 +405,21 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                         }
                         
                         for ($i = $start; $i <= $end; $i++) : ?>
-                            <a href="<?= $base_url . $i ?>" class="btn" style="<?= $i == $page ? 'background-color:#000; color:#fff;' : 'background-color:#eee; color:#333;' ?>">
+                            <a href="<?= $base_url .$i ?>" class="btn" style="<?= $i ==$page ? 'background-color:#000; color:#fff;' : 'background-color:#eee; color:#333;' ?>">
                                 <?= $i ?>
                             </a>
                         <?php endfor; ?>
 
                         <?php 
-                        if ($end < $total_pages) {
-                            if ($end < $total_pages - 1) {
+                        if ($end <$total_pages) {
+                            if ($end <$total_pages - 1) {
                                 echo '<span style="padding: 6px 8px;">...</span>';
                             }
                             echo '<a href="' . $base_url . $total_pages . '" class="btn" style="background-color:#eee; color:#333;">' . $total_pages . '</a>';
                         }
                         ?>
 
-                    <?php if ($page < $total_pages) : ?>
+                    <?php if ($page <$total_pages) : ?>
                         <a href="<?= $base_url . ($page + 1) ?>" class="btn">Siguiente</a>
                     <?php else : ?>
                         <button class="btn" disabled>Siguiente</button>
@@ -431,7 +429,6 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
             </div>
 
         <script>
-            // MODIFICACIÓN: JS para manejar la búsqueda por URL
             document.addEventListener('DOMContentLoaded', function() {
                 const searchInput = document.getElementById('search_input');
                 const searchButton = document.getElementById('search_button');
@@ -440,24 +437,20 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                     searchButton.addEventListener('click', function() {
                         const query = searchInput.value.trim();
                         if (query) {
-                            // Redirige a la página con el parámetro 'search' en la URL
                             window.location.href = `gestionar_productos.php?search=${encodeURIComponent(query)}`;
                         } else {
-                            // Si el campo está vacío, quita el parámetro 'search' volviendo a la URL base
                             window.location.href = 'gestionar_productos.php';
                         }
                     });
 
-                    // Opcional: Permitir buscar presionando Enter
                     searchInput.addEventListener('keypress', function(e) {
                         if (e.key === 'Enter') {
-                            e.preventDefault(); // Evita el envío del formulario si está dentro de uno
+                            e.preventDefault();
                             searchButton.click();
                         }
                     });
                 }
                 
-                // Funciones de modal existentes...
                 function openModal(id) {
                     const el = document.getElementById(id);
                     if (el) {
@@ -477,8 +470,6 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                 window.openModal = openModal;
                 window.closeModal = closeModal;
 
-
-                // Cerrar modales al hacer click fuera del contenido
                 window.addEventListener('click', function(e) {
                     if (e.target.classList && e.target.classList.contains('modal')) {
                         e.target.classList.remove('show');
@@ -486,7 +477,6 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                     }
                 });
 
-                // Cerrar modal con ESC
                 window.addEventListener('keydown', function(e) {
                     if (e.key === 'Escape') {
                         document.querySelectorAll('.modal.show').forEach(function(m) {
@@ -498,13 +488,13 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
             });
         </script>
 
-         <footer style="
+        <footer style="
         position: fixed; 
         bottom: 0; 
         width: 100%; 
         text-align: center; 
         padding: 10px 0; 
-        background: #f4f4f9; /* Fondo similar al body */
+        background: #f4f4f9; 
         border-top: 1px solid #ddd;
         font-size: 0.85em;
         color: #555;
