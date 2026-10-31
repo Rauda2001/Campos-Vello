@@ -120,6 +120,7 @@ $productos = $stmt_prod->fetchAll();
         .receipt-history { padding: 16px; border: 1px solid #e0ebe3; border-radius: 12px; background: #f8fbf9; }
         .receipt-detail { padding: 18px; border: 1px solid #e0ebe3; border-radius: 12px; background: #fff; }
         .detail-label { display: block; margin-bottom: 4px; color: #748176; font-size: .82rem; }
+        .admin-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 24px; }
         @media (max-width: 767.98px) {
             .page-heading { margin-bottom: 20px; }
             .receipt-actions { align-items: stretch !important; flex-direction: column; gap: 10px; }
@@ -245,6 +246,12 @@ $productos = $stmt_prod->fetchAll();
             <h1>Ingreso de material</h1>
             <p>Registra la recepción de productos y actualiza sus existencias.</p>
         </div>
+    </div>
+    <div class="admin-tools">
+        <a class="btn btn-outline-success" href="nuevo_producto.php"><i class="bi bi-plus-lg"></i> Nuevo producto</a>
+        <a class="btn btn-outline-success" href="gestionar_proveedores.php"><i class="bi bi-truck"></i> Proveedores</a>
+        <a class="btn btn-outline-success" href="ordenes_compra.php"><i class="bi bi-clipboard-check"></i> Órdenes de compra</a>
+        <a class="btn btn-outline-success" href="inventario.php"><i class="bi bi-file-earmark-pdf"></i> Inventario / PDF</a>
     </div>
 
     <form id="formIngreso" action="guardar_ingreso.php" method="POST">
